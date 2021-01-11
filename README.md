@@ -1,2 +1,2 @@
 # counter
-SOlaranlage
+Solaranlage

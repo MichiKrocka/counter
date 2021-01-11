@@ -1,0 +1,8 @@
+<%
+ //console.log("ERR", error);
+%>
+<h1><%= error.message %></h1>
+<h2><%= error.status %></h2>
+<% if(typeof error.cfg == "undefined" || error.cfg.debug > 1) { %>
+<pre><%= error.stack %></pre>
+<% } %>

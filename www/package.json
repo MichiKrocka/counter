@@ -1,0 +1,43 @@
+{
+  "name": "counter",
+  "version": "1.0.0",
+  "description": "Photovoltaik",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app",
+    "devstart": "nodemon app"
+  },
+  "nodemonConfig": {
+    "ext": "js,htm,json,ejs",
+    "ignore": [
+      "app"
+    ],
+    "watch": [
+      "./",
+      "public/"
+    ],
+    "delay": "100"
+  },
+  "repository": {
+    "type": "git",
+    "url": "raspberrypi"
+  },
+  "author": "Michael Krocka",
+  "license": "ISC",
+  "dependencies": {
+    "compression": "^1.7.4",
+    "ejs": "^3.1.2",
+    "express": "^4.17.1",
+    "express-fileupload": "^1.1.7-alpha.3",
+    "extend": "^3.0.2",
+    "fs-extra": "^9.0.0",
+    "jsonpath": "^1.0.2",
+    "md5": "^2.2.1",
+    "mime": "^2.4.5",
+    "rrdtool": "^0.1.1",
+    "serve-favicon": "^2.5.0",
+    "sprintf-js": "^1.1.2",
+    "ssh2": "^0.8.9"
+  }
+}

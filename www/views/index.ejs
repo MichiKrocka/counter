@@ -1,0 +1,404 @@
+<%
+// *********************************************************
+if(typeof req.body.rest != "undefined"){
+  //console.log(req.body.rest);
+  switch(req.body.rest){
+    case "GET_DATA": // Get data ...........................
+      fs.readFile(cfg.GET_DATA, function(err, data){
+        if(err){
+          console.log(err);
+          res.json(err);
+        };
+        data = data.toString().replace("\n", "").split("@");
+        data = {
+          t: data[0],
+          d: data[1].split(":")
+        };
+        res.json(data);
+      });
+      break;
+    case "GET_PLOT": // Get plot data ......................
+      var db  = rrdtool.open(cfg.GET_PLOT),
+          now = rrdtool.now();
+
+      db.fetch('AVERAGE', now - 24 * 60 * 60, now, function (err, data) {
+        if(err){
+          console.log(err);
+          res.json(err);
+        }
+        res.json(data);
+      });
+      break;    
+    case "GET_HIST": // Get history ........................
+
+      break;
+  }
+  return;
+}
+// *********************************************************
+%>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>  
+<title>COUNTER</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" type="text/css" href="css/w3.css">
+<link rel="stylesheet" type="text/css" href="css/theme/w3-theme-blue.css" id="id_Theme">
+<link rel="stylesheet" type="text/css" href="css/awesome/css/fontawesome.min.css">
+<link rel="stylesheet" type="text/css" href="css/awesome/css/brands.min.css">
+<link rel="stylesheet" type="text/css" href="css/awesome/css/solid.min.css">
+<link rel="stylesheet" type="text/css" href="css/index.css">
+
+<script src="lib/jquery/jquery.min.js"></script>
+<script src="lib/jquery/jquery.dateFormat.min.js"></script>
+<script src="lib/jquery/jquery.drags.js"></script>
+<script src="lib/jquery/jquery.event.drag.js"></script>
+<script src="lib/jquery/jquery.scrollView.js"></script>
+<script src="lib/jquery/jquery.dialog.js"></script>
+<script src="lib/jquery/jquery.resizable.min.js"></script>
+<script src="lib/jquery/jquery.autocomplete.min.js"></script>
+<script src="lib/plotly/plotly-latest.min.js"></script>
+<script src="lib/plotly/plotly-locale-de.js"></script>
+
+<script src="lib/jquery/jquery.mousewheel.min.js"></script>
+<script src="lib/sprintf.min.js"></script>
+<script src="lib/mqtt.js"></script>
+<script src="lib/lib_client.js"></script>
+<script language="JavaScript" type="text/javascript">
+var Tper = 1; // Aktualisierung in Minuten
+// ---------------------------------------------------------
+$(document).ajaxComplete(function(ev, jqXHR){
+  document.ajax--;
+  //console.log("COMPLET", document.ajax);
+  if(jqXHR.status == 403) // Forbidden
+    logout();
+});
+// ---------------------------------------------------------
+$(document).ajaxSend(function(ev, jqXHR){
+  document.ajax++;
+  //console.log("SEND", document.ajax);
+});
+// ---------------------------------------------------------
+jQuery(function($){
+  var H = $('body').height(),
+      h = $('#id_Navig').height();
+
+  // events ................................................
+  setEvents();
+  // data ..................................................
+  $('#id_Cont').data("resize", function(ev, el){
+    //$(el).height(H - h);
+  });
+  // zoom Alt+ Alt- ........................................
+  $('body').data("key_ever", function(key, el){
+    switch(key){
+      case "Alt--":
+        var f = $(el).data("font");
+        
+        $(el)
+        .data("font", f -= 0.1)
+        .css("font-size", f+"em");
+        return false;
+      case "Alt-+":
+        var f = $(el).data("font");
+        
+        $(el)
+        .data("font", f += 0.1)
+        .css("font-size", f+"em");
+        return false;
+      case "Alt-0":
+        $(el)
+        .data("font", 1)
+        .css("font-size", "1em");
+        return false;
+    }
+  });
+  // exec ..................................................
+  //$(window).trigger("resize");
+  $('#id_Flot').css("height", "calc(100% - "+h+"px)");
+  getData();
+  $('button[data-c="NAV_PLOT"]').click();
+  startTimer();
+});
+// ---------------------------------------------------------
+// functions
+// ---------------------------------------------------------
+function choice(ev, el, arg){
+  var c = $(el).data("c");
+
+//console.log(__FUNCTION__, c, arg);
+  switch(c){
+    case "NAV_PLOT": // ....................................
+      $.postJSON("/", {
+        rest: "GET_PLOT"
+      }, plot);
+      break;
+    default: // ............................................
+      console.log(__FILE__, __FUNCTION__, c);
+  }
+}
+// ---------------------------------------------------------
+var x = [];
+var aD = [{
+  name: "8.1.0 [kWh]",
+  legendgroup: 'Zähler',  
+  vr: "Nminus",
+  k: 1/10000,
+  x: x,
+  y: []
+}, {
+  name: "8.2.0 [kWh]",
+  legendgroup: 'Zähler',  
+  vr: "Nplus",
+  k: 1/10000,
+  x: x,
+  y: []
+}, {
+  name: "E [kWh]",
+  legendgroup: 'Zähler',  
+  vr: "E",
+  k: 1/1000,
+  x: x,
+  y: []
+}, {
+  name: "P [kW]",
+  legendgroup: 'Leistung',  
+  vr: "P",
+  k: 1/1000,
+  x: x,
+  y: []
+}, {
+  name: "Bout [kW]",
+  legendgroup: 'Leistung',  
+  vr: "Bminus",
+  k: 1/1000,
+  x: x,
+  y: []
+}, {
+  name: "Bin [kW]",
+  legendgroup: 'Leistung',  
+  vr: "Bplus",
+  k: 1/1000,
+  x: x,
+  y: []
+}, {
+  name: "B [%]",
+  legendgroup: 'Batterie',  
+  vr: "B",
+  k: 1,
+  x: x,
+  y: []
+}, {
+  name: "Tin [°C]",
+  legendgroup: 'Temperatur',  
+  vr: "Tin",
+  k: 1,
+  x: x,
+  y: []
+}, {
+  name: "Tout [°C]",
+  legendgroup: 'Temperatur',  
+  vr: "Tout",
+  k: 1,
+  x: x,
+  y: []
+}];
+var oPlot = null;
+// ---------------------------------------------------------
+function plot(D){
+  D.pop();
+  x = D.map(a => {
+    var d = new Date(a.time * 1000);
+    return sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+      d.getFullYear(), d.getMonth() + 1, d.getDate(),
+      d.getHours(), d.getMinutes(), d.getSeconds());
+  });
+  aD.forEach((d, ix) => {
+    d.x = x;
+    d.y = D.map(a => a.values[d.vr] * d.k);
+  });
+  // .......................................................
+  if(oPlot !== null){
+    Plotly.redraw("id_Flot");
+    return;
+  }
+  // .......................................................
+  oPlot = Plotly.newPlot("id_Flot", aD, {
+    margin: {
+      t: 40,
+      b: 40,
+      l: 50,
+      r: 30
+    }, 
+    showlegend: true,
+    legend: {
+      x: 1,
+      xanchor: 'right',
+      y: 1
+    }
+  }, {
+    doubleClickDelay: 500,
+    scrollZoom: true,
+    responsive: true,
+    locale: "de"
+  });
+
+}
+// ---------------------------------------------------------
+function setVal(el, v, f){
+  var vp = parseFloat($(el).text());
+
+  if(!f)
+    f = "%.03f";
+  $(el, '#id_Navig')
+  .prop("title", sprintf(f, v - vp))
+  .text(sprintf(f, v))
+  .toggleClass("asc", v < vp)
+  .toggleClass("desc", v > vp);
+}
+// ---------------------------------------------------------
+function getData(callBack){
+  $.postJSON("/", {
+    rest:   "GET_DATA"
+  }, function(D){
+    var v0, v1;
+
+    $('.time', '#id_Navig').text(D.t);
+    setVal('td.810',    D.d[0] / 1000);
+    setVal('td.820',    D.d[1] / 1000);
+    setVal('td.E',      D.d[2] / 1000);
+    setVal('td.P',      D.d[3] / 1000);
+    setVal('td.Bplus',  D.d[4] / 1000);
+    setVal('td.Bminus', D.d[5] / 1000);
+    setVal('td.B',      D.d[6], "%i");
+    setVal('td.Tin',    D.d[7], "%.02f");
+    setVal('td.Tout',   D.d[8], "%.02f");
+    if(callBack)
+      callBack();
+  });
+}
+// ---------------------------------------------------------
+function startTimer(){
+  $('span.time_bar').css({
+    "width": "0",
+    "transition": "width "+0+"s"
+  });
+  getData(function(){
+    var s  = 60 * (Tper - new Date().getMinutes() % Tper) + Tper;
+
+    $('span.time_bar').css({
+      "width": "100%",
+      "transition": "width "+s+"s"
+    });
+    setTimeout(startTimer, 1000 * s);
+  });
+}
+// ---------------------------------------------------------
+</script>  
+
+<style type="text/css">
+#id_Navig table {
+  width:100%;
+}
+#id_Navig table thead th:first-child {
+  text-align:center;
+  width: 13em;
+}
+#id_Navig table thead th:not(:last-child):not(:first-child) {
+  text-align:center;
+  width:6.5em;
+}
+#id_Navig table tbody td {
+  text-align:center;
+  white-space:nowrap;
+}
+#id_Cont {
+  width:100%;
+  padding:0;
+  margin:0;
+  border:0;
+}
+span.time_bar {
+  display:block;
+  background-color: rgba(0, 255, 0, .3);
+  position:absolute;
+  top:0;
+  left:0;
+  height:100%;
+  width:0%;
+  transition:width 2s;
+  transition-timing-function:cubic-bezier(0, 0, 1, 1);
+}
+.asc, .desc {
+  background-color:#FFFF00;
+}
+#id_Flot {
+  width:100%;
+}
+</style>
+
+</head>
+<body class="magnify" data-key_ever="" data-font="1">
+  <div id="id_Navig" class="w3-row">
+    <div class="tabs-nav w3-bar w3-theme" data-tabs="#id_Cont">
+      <button class="tabs-btn w3-bar-item w3-button btn-narrow"
+          data-c="NAV_STATE">
+        <i class="fas fa-fw fa-charging-station"></i>
+         State
+      </button>
+      <button class="lang tabs-btn w3-bar-item w3-button btn-narrow"
+          data-c="NAV_PLOT">
+        <i class="fas fa-fw fa-chart-bar"></i>
+        Plot
+      </button>
+      <div class="text-truncate w3-bar-item">Counter</div>
+      <button class="lang-title btn-narrow w3-button w3-bar-item"
+        title="Insert"
+        data-c="NAV_INSERT">
+        <i class="fas fa-fw fa-share"></i>
+      </button>
+    </div>
+    <div class="w3-bar">
+      <table class="w3-table w3-bordered">
+        <thead class="w3-theme-l4">
+          <tr>
+            <th class="date">2020-08-02 11:43:08</th>
+            <th>8.1.0<br>[kWh]</th>
+            <th>8.2.0<br>[kWh]</th>
+            <th>E<br>[kWh]</th>
+            <th>P<br>[kW]</th>
+            <th>Bout<br>[kW]</th>
+            <th>Bin<br>[kW]</th>
+            <th>B<br>[%]</th>
+            <th>Tin<br>[°C]</th>
+            <th>Tout<br>[°C]</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody class=" w3-theme-l5">
+          <tr style="font-family:monospace;cursor:pointer">
+            <td style="position: relative"><span class="time_bar"></span><span class="time">2020-05-17 09:25:09</span></td>
+            <td class="810">6524.927</td>
+            <td class="820">816.793</td>
+            <td class="E">1279.812</td>
+            <td class="P">0.000</td>
+            <td class="Bplus">0.000</td>
+            <td class="Bminus">0.000</td>
+            <td class="B">0</td>
+            <td class="Tin">20.00</td>
+            <td class="Tout">10.00</td>
+            <td></td>
+          </tr>
+        </tbod>
+      </table>
+    </div>
+  </div>
+
+  <div id="id_Cont" class="scroll" data-resize="">
+    <div id="id_Img" class="tabs-cnt tab-counter resize w3-border">img</div>
+    <div id="id_Flot" class="tabs-cnt tab-counter"></div>
+  </div>
+</body>
+</html>
