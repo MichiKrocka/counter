@@ -38,6 +38,6 @@
     "rrdtool": "^0.1.1",
     "serve-favicon": "^2.5.0",
     "sprintf-js": "^1.1.2",
-    "ssh2": "^0.8.9"
+    "ssh2-utils": "^1.0.28"
   }
 }

@@ -1,23 +1,87 @@
 <%
+const cmdGetPltData = `rrdtool fetch ${cfg.GET_PLOT} AVERAGE "-r 1m -s -24h"`;
 // *********************************************************
 if(typeof req.body.rest != "undefined"){
-  //console.log(req.body.rest);
+  console.log(req.body.rest);
   switch(req.body.rest){
     case "GET_DATA": // Get data ...........................
-      fs.readFile(cfg.GET_DATA, function(err, data){
+    {
+      if(cfg.KEY){
+        ssh.readFile(sshServer, cfg.GET_DATA, (err, D) => {
+          if(err){
+            console.log(err);
+            return res.json(err);
+          }
+          data(D);
+        });
+        return;
+      }
+      // local .............................................
+      fs.readFile(cfg.GET_DATA, function(err, D){
         if(err){
           console.log(err);
           res.json(err);
         };
-        data = data.toString().replace("\n", "").split("@");
-        data = {
-          t: data[0],
-          d: data[1].split(":")
+        data(D);
+      });
+      // common part .......................................
+      function data(D){
+        D = D.toString().replace("\n", "").split("@");
+        D = {
+          t: D[0],
+          d: D[1].split(":")
         };
-        res.json(data);
+        res.json(D);
+      }
+      break;
+    }
+    case "GET_STATE": // Get weather state .................
+      if(cfg.KEY){
+        ssh.readFile(sshServer, cfg.GET_STATE, (err, D) => {
+          if(err){
+            console.log(err);
+            return res.json(err);
+          }
+          res.json(JSON.parse(D));
+        });
+        return;
+      }
+      // local .............................................
+      fs.readFile(cfg.GET_STATE, function(err, D){
+        if(err){
+          console.log(err);
+          res.json(err);
+        };
+        res.json(JSON.parse(D));
       });
       break;
     case "GET_PLOT": // Get plot data ......................
+      if(cfg.KEY){
+        ssh.execOne(sshServer, cmdGetPltData, (err, stdo, stde) => {
+          if(err){
+            console.log(err);
+            return res.json(err);
+          }
+          if(stde){
+            console.log(stde);
+            return res.json(err);
+          }
+          var D = stdo
+          .split("\n")
+          .filter((d, ix) => ix > 1 && d != "" && !(/nan/.test(d)))
+          .map(d => {
+            var t = d.split(/:/),
+                y = t[1].trim().replace(/,/g, ".").split(/ +/)
+                    .map(y => parseFloat(y)),
+                x = new Date(t[0] * 1000);
+
+            return [parseInt(t[0])].concat(y);
+          });
+          return res.json(D);
+        });
+        return;
+      }
+      // local .............................................
       var db  = rrdtool.open(cfg.GET_PLOT),
           now = rrdtool.now();
 
@@ -30,8 +94,27 @@ if(typeof req.body.rest != "undefined"){
       });
       break;    
     case "GET_HIST": // Get history ........................
-
+      if(cfg.KEY){
+        ssh.readFile(sshServer, cfg.GET_HIST, (err, D) => {
+          if(err){
+            console.log(err);
+            return res.json(err);
+          }
+          res.json(D);
+        });
+        return;
+      }
+      // local .............................................
+      fs.readFile(cfg.GET_HIST, function(err, D){
+        if(err){
+          console.log(err);
+          res.json(err);
+        };
+        res.json(D);
+      });
       break;
+    default:
+      return res.json(req.body.rest+"?");
   }
   return;
 }
@@ -82,14 +165,14 @@ $(document).ajaxSend(function(ev, jqXHR){
 });
 // ---------------------------------------------------------
 jQuery(function($){
-  var H = $('body').height(),
-      h = $('#id_Navig').height();
-
   // events ................................................
   setEvents();
   // data ..................................................
   $('#id_Cont').data("resize", function(ev, el){
-    //$(el).height(H - h);
+    var H = $('body').height(),
+        h = $('#id_Navig').height();
+
+    $(el).height(H - h);
   });
   // zoom Alt+ Alt- ........................................
   $('body').data("key_ever", function(key, el){
@@ -116,11 +199,9 @@ jQuery(function($){
     }
   });
   // exec ..................................................
-  //$(window).trigger("resize");
-  $('#id_Flot').css("height", "calc(100% - "+h+"px)");
-  getData();
-  $('button[data-c="NAV_PLOT"]').click();
-  startTimer();
+  $(window).trigger("resize");
+//  $('button[data-c="GET_PLOT"]').click();
+  startTimer(true);
 });
 // ---------------------------------------------------------
 // functions
@@ -130,10 +211,20 @@ function choice(ev, el, arg){
 
 //console.log(__FUNCTION__, c, arg);
   switch(c){
-    case "NAV_PLOT": // ....................................
+    case "GET_STATE": // ...................................
       $.postJSON("/", {
-        rest: "GET_PLOT"
+        rest: c
+      }, state);
+      break;
+    case "GET_PLOT": // ....................................
+      $.postJSON("/", {
+        rest: c
       }, plot);
+      break;
+    case "GET_HIST": // ....................................
+      $.postJSON("/", {
+        rest: c
+      }, hist);
       break;
     default: // ............................................
       console.log(__FILE__, __FUNCTION__, c);
@@ -146,6 +237,8 @@ var aD = [{
   legendgroup: 'Zähler',  
   vr: "Nminus",
   k: 1/10000,
+  k2: 1/1000,
+  f2: "%.3f",
   x: x,
   y: []
 }, {
@@ -153,6 +246,8 @@ var aD = [{
   legendgroup: 'Zähler',  
   vr: "Nplus",
   k: 1/10000,
+  k2: 1/1000,
+  f2: "%.3f",
   x: x,
   y: []
 }, {
@@ -160,6 +255,8 @@ var aD = [{
   legendgroup: 'Zähler',  
   vr: "E",
   k: 1/1000,
+  k2: 1/1000,
+  f2: "%.3f",
   x: x,
   y: []
 }, {
@@ -167,6 +264,8 @@ var aD = [{
   legendgroup: 'Leistung',  
   vr: "P",
   k: 1/1000,
+  k2: 1/1000,
+  f2: "%.3f",
   x: x,
   y: []
 }, {
@@ -174,6 +273,8 @@ var aD = [{
   legendgroup: 'Leistung',  
   vr: "Bminus",
   k: 1/1000,
+  k2: 1/1000,
+  f2: "%.3f",
   x: x,
   y: []
 }, {
@@ -181,6 +282,8 @@ var aD = [{
   legendgroup: 'Leistung',  
   vr: "Bplus",
   k: 1/1000,
+  k2: 1/1000,
+  f2: "%.3f",
   x: x,
   y: []
 }, {
@@ -188,6 +291,8 @@ var aD = [{
   legendgroup: 'Batterie',  
   vr: "B",
   k: 1,
+  k2: 1,
+  f2: "%i",
   x: x,
   y: []
 }, {
@@ -195,6 +300,8 @@ var aD = [{
   legendgroup: 'Temperatur',  
   vr: "Tin",
   k: 1,
+  k2: 1,
+  f2: "%.2f",
   x: x,
   y: []
 }, {
@@ -202,12 +309,31 @@ var aD = [{
   legendgroup: 'Temperatur',  
   vr: "Tout",
   k: 1,
+  k2: 1,
+  f2: "%.2f",
   x: x,
   y: []
 }];
 var oPlot = null;
 // ---------------------------------------------------------
 function plot(D){
+  aD.forEach(d => {
+    d.x = [];
+    d.y = [];
+  });
+  D.forEach(d => {
+    var x = new Date(d[0] * 1000);
+
+    x = sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+          x.getFullYear(), x.getMonth() + 1, x.getDate(),
+          x.getHours(),    x.getMinutes(),   x.getSeconds()
+        );
+    aD.forEach((o, ix) => {
+      o.x.push(x);
+      o.y.push(d[ix + 1] * o.k);
+    });
+  });
+/*
   D.pop();
   x = D.map(a => {
     var d = new Date(a.time * 1000);
@@ -219,13 +345,14 @@ function plot(D){
     d.x = x;
     d.y = D.map(a => a.values[d.vr] * d.k);
   });
+  */
   // .......................................................
   if(oPlot !== null){
-    Plotly.redraw("id_Flot");
+    Plotly.redraw("id_PLOT");
     return;
   }
   // .......................................................
-  oPlot = Plotly.newPlot("id_Flot", aD, {
+  oPlot = Plotly.newPlot("id_PLOT", aD, {
     margin: {
       t: 40,
       b: 40,
@@ -247,6 +374,23 @@ function plot(D){
 
 }
 // ---------------------------------------------------------
+function state(D){
+  console.log(D);
+  $('#id_STATE').html(`<pre>${JSON.stringify(D, null, 2)}</pre>`);
+}
+// ---------------------------------------------------------
+function hist(D){
+  $('tbody', '#id_HIST').html(
+    D.trim().split("\n").map((d, ir) => {
+      d = d.split("@");
+    return `<tr data-sort_id="${ir}"><td></td><td>${d[0]}</td>`+
+            d[1].split(":").map((dd, ix) => 
+      `<td>${sprintf(aD[ix].f2, dd * aD[ix].k2)}</td>`)
+      .join("")+
+      '<td></td></tr>';
+  }));
+}
+// ---------------------------------------------------------
 function setVal(el, v, f){
   var vp = parseFloat($(el).text());
 
@@ -259,12 +403,17 @@ function setVal(el, v, f){
   .toggleClass("desc", v > vp);
 }
 // ---------------------------------------------------------
-function getData(callBack){
+function getData(callBack, repeat){
   $.postJSON("/", {
     rest:   "GET_DATA"
   }, function(D){
-    var v0, v1;
-
+    renderData(D);
+    if(repeat)
+      renderData(D);
+    if(callBack)
+      callBack();
+  });
+  function renderData(D){
     $('.time', '#id_Navig').text(D.t);
     setVal('td.810',    D.d[0] / 1000);
     setVal('td.820',    D.d[1] / 1000);
@@ -275,12 +424,10 @@ function getData(callBack){
     setVal('td.B',      D.d[6], "%i");
     setVal('td.Tin',    D.d[7], "%.02f");
     setVal('td.Tout',   D.d[8], "%.02f");
-    if(callBack)
-      callBack();
-  });
+  }
 }
 // ---------------------------------------------------------
-function startTimer(){
+function startTimer(repeat){
   $('span.time_bar').css({
     "width": "0",
     "transition": "width "+0+"s"
@@ -293,11 +440,12 @@ function startTimer(){
       "transition": "width "+s+"s"
     });
     setTimeout(startTimer, 1000 * s);
-  });
+  }, repeat);
 }
 // ---------------------------------------------------------
-</script>  
+</script> 
 
+<style type="text/css" id="id_Style"></style>
 <style type="text/css">
 #id_Navig table {
   width:100%;
@@ -334,30 +482,40 @@ span.time_bar {
 .asc, .desc {
   background-color:#FFFF00;
 }
-#id_Flot {
+#id_PLOT {
   width:100%;
+  height:100%;
+}
+#id_HIST table thead th {
+  text-align:center;
+}
+#id_HIST table thead th:not(:last-child) {
+  width:1%;
+}
+#id_HIST table tbody td {
+  text-align:right;
+  white-space:nowrap;
 }
 </style>
 
 </head>
-<body class="magnify" data-key_ever="" data-font="1">
+<body class="magnify" data-key_ever="" data-font="1" ddata-resize="">
   <div id="id_Navig" class="w3-row">
     <div class="tabs-nav w3-bar w3-theme" data-tabs="#id_Cont">
       <button class="tabs-btn w3-bar-item w3-button btn-narrow"
-          data-c="NAV_STATE">
+          data-c="GET_STATE">
         <i class="fas fa-fw fa-charging-station"></i>
          State
       </button>
       <button class="lang tabs-btn w3-bar-item w3-button btn-narrow"
-          data-c="NAV_PLOT">
+          data-c="GET_PLOT">
         <i class="fas fa-fw fa-chart-bar"></i>
         Plot
       </button>
-      <div class="text-truncate w3-bar-item">Counter</div>
-      <button class="lang-title btn-narrow w3-button w3-bar-item"
-        title="Insert"
-        data-c="NAV_INSERT">
-        <i class="fas fa-fw fa-share"></i>
+      <button class="lang tabs-btn w3-bar-item w3-button btn-narrow"
+          data-c="GET_HIST">
+        <i class="fas fa-fw fa-history"></i>
+        History
       </button>
     </div>
     <div class="w3-bar">
@@ -396,9 +554,30 @@ span.time_bar {
     </div>
   </div>
 
-  <div id="id_Cont" class="scroll" data-resize="">
-    <div id="id_Img" class="tabs-cnt tab-counter resize w3-border">img</div>
-    <div id="id_Flot" class="tabs-cnt tab-counter"></div>
+  <div id="id_Cont" class="scroll resize" data-resize="">
+    <div id="id_STATE" class="tabs-cnt tab-counter resize w3-border">State</div>
+    <div id="id_PLOT"  class="tabs-cnt tab-counter"></div>
+    <div id="id_HIST"  class="tabs-cnt tab-counter resize w3-border">
+      <table class="tab-counter w3-table w3-bordered w3-striped">
+        <thead class="sticky w3-theme">
+          <tr data-sort="#id_HIST tbody">
+            <th>#</th>
+            <th class="sort w3-button">Datum</th>
+            <th class="sort w3-button">8.1.0</th>
+            <th class="sort w3-button">8.2.0</th>
+            <th class="sort w3-button">E</th>
+            <th class="sort w3-button">P</th>
+            <th class="sort w3-button">Bout</th>
+            <th class="sort w3-button">Bin</th>
+            <th class="sort w3-button">B</th>
+            <th class="sort w3-button">Tin</th>
+            <th class="sort w3-button">Tout</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 </body>
 </html>

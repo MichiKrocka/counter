@@ -22,13 +22,21 @@ var compression  = require('compression'),
 //    jp           = require('jsonpath'),
 //    mime         = require('mime'),
     http         = require('http');
-//    sshclient    = require('ssh2').Client;
 // .........................................................
-//global.sshclient  = sshclient;
 global.sprintf = sprintf;
 global.fs      = fs;
 global.rrdtool = rrdtool;
-//global.privateKey = require('fs').readFileSync(cfg.KEY);
+global.cfg     = cfg;
+if(cfg.KEY){
+  var sshUtils = require('ssh2-utils');
+
+  global.ssh = new sshUtils();
+  global.sshServer = {
+    host:       "counter",
+    username:   "pi",
+    privateKey: require('fs').readFileSync(cfg.KEY)    
+  };
+}
 // .........................................................
 var app = express();
 // .........................................................
