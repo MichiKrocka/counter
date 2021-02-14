@@ -110,7 +110,7 @@ if(typeof req.body.rest != "undefined"){
           console.log(err);
           res.json(err);
         };
-        res.json(D);
+        res.json(D.toString());
       });
       break;
     default:
