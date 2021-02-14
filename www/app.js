@@ -12,7 +12,6 @@ var compression  = require('compression'),
     path         = require('path'),
     favicon      = require('serve-favicon'),
     fs           = require('fs-extra'),
-//    rrdtool      = require('rrdtool'),
     child_p      = require('child_process'),
     sprintf      = require('sprintf-js').sprintf,
     express      = require('express'),
@@ -21,7 +20,6 @@ var compression  = require('compression'),
 // .........................................................
 global.sprintf = sprintf;
 global.fs      = fs;
-//global.rrdtool = rrdtool;
 global.child_p = child_p;
 global.cfg     = cfg;
 if(cfg.KEY){

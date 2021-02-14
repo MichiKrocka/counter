@@ -82,16 +82,30 @@ if(typeof req.body.rest != "undefined"){
         return;
       }
       // local .............................................
-      var db  = rrdtool.open(cfg.GET_PLOT),
-          now = rrdtool.now();
-
-      db.fetch('AVERAGE', now - 24 * 60 * 60, now, function (err, data) {
+      child_p.exec(sshServer, cmdGetPltData, (err, stdo, stde) => {
         if(err){
           console.log(err);
-          res.json(err);
+          return res.json(err);
         }
-        res.json(data);
+        if(stde){
+          console.log(stde);
+          return res.json(err);
+        }
+console.log(stdo);        
+        var D = stdo
+        .split("\n")
+        .filter((d, ix) => ix > 1 && d != "" && !(/nan/.test(d)))
+        .map(d => {
+          var t = d.split(/:/),
+              y = t[1].trim().replace(/,/g, ".").split(/ +/)
+                  .map(y => parseFloat(y)),
+              x = new Date(t[0] * 1000);
+
+          return [parseInt(t[0])].concat(y);
+        });
+        return res.json(D);
       });
+      return;
       break;    
     case "GET_HIST": // Get history ........................
       if(cfg.KEY){
