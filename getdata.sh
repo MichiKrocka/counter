@@ -77,8 +77,8 @@ dummyData(){
 ##################################################
 testData() {
   echo "Wait please..."
-  #fetchData
-  dummyData
+  fetchData
+  #dummyData
   printf "C180 %8.3f kWh\nC280 %8.3f kWh\nE    %8.3f kWh\nP    %8.3f kW\nBAT1 %8.3f kW\nBAT2 %8.3f kW\nBATP %8.3f %%\nT    %8.3f °C\n"\
     $C180 $C280 $E $P $BAT1 $BAT2 $BATP $T
   exit 0
