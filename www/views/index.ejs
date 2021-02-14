@@ -2,7 +2,7 @@
 const cmdGetPltData = `rrdtool fetch ${cfg.GET_PLOT} AVERAGE "-r1m -s-24h" | grep -v nan`;
 // *********************************************************
 if(typeof req.body.rest != "undefined"){
-  console.log(req.body.rest);
+  //console.log(req.body.rest);
   switch(req.body.rest){
     case "GET_DATA": // Get data ...........................
     {
@@ -82,9 +82,7 @@ if(typeof req.body.rest != "undefined"){
         return;
       }
       // local .............................................
-//      child_p.exec(cmdGetPltData, (err, stdo, stde) => {
-      child_p.exec("ls -l", (err, stdo, stde) => {
-console.log(stdo);
+      child_p.exec(cmdGetPltData, (err, stdo, stde) => {
         if(err){
           console.log(err);
           return res.json(err);
@@ -93,8 +91,6 @@ console.log(stdo);
           console.log(stde);
           return res.json(err);
         }
-return res.json({});
-    
         var D = stdo
         .split("\n")
         .filter((d, ix) => ix > 1 && d != "" && !(/nan/.test(d)))
