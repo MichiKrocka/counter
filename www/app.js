@@ -21,7 +21,7 @@ var compression  = require('compression'),
 // .........................................................
 global.sprintf = sprintf;
 global.fs      = fs;
-global.rrdtool = rrdtool;
+//global.rrdtool = rrdtool;
 global.child_p = child_p;
 global.cfg     = cfg;
 if(cfg.KEY){
