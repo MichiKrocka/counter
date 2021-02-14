@@ -12,20 +12,17 @@ var compression  = require('compression'),
     path         = require('path'),
     favicon      = require('serve-favicon'),
     fs           = require('fs-extra'),
-    rrdtool      = require('rrdtool'),
-//    zlib         = require('zlib'),
+//    rrdtool      = require('rrdtool'),
     child_p      = require('child_process'),
-//    md5          = require('md5'),
     sprintf      = require('sprintf-js').sprintf,
     express      = require('express'),
     extend       = require('extend'),
-//    jp           = require('jsonpath'),
-//    mime         = require('mime'),
     http         = require('http');
 // .........................................................
 global.sprintf = sprintf;
 global.fs      = fs;
 global.rrdtool = rrdtool;
+global.child_p = child_p;
 global.cfg     = cfg;
 if(cfg.KEY){
   var sshUtils = require('ssh2-utils');
