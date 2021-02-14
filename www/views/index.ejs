@@ -1,5 +1,5 @@
 <%
-const cmdGetPltData = `rrdtool fetch ${cfg.GET_PLOT} AVERAGE "-r 1m -s -24h"`;
+const cmdGetPltData = `rrdtool fetch ${cfg.GET_PLOT} AVERAGE "-r 1m -s -24h" | grep -v nan`;
 // *********************************************************
 if(typeof req.body.rest != "undefined"){
   console.log(req.body.rest);

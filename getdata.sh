@@ -10,60 +10,152 @@
 # Tin    [°C]
 # Tout   [°C]
 ##################################################
-CNT=/dev/ttyUSB0
-BUF=/tmp/cnt
-SBURI="https://192.168.1.26/dyn/getDashValues.json"
-SEURI="https://monitoringapi.solaredge.com/site/\
+ttyCNT=/dev/ttyUSB0
+sbURI="https://192.168.1.26/dyn/getDashValues.json"
+seURI="https://monitoringapi.solaredge.com/site/\
 1588788/overview?api_key=35AWMO9GK13MT2VE8ZF0YLVJ5IK7RCSA\
 &format=application/json"
+WM=/home/pi/digitemp/wm.json
 ##################################################
-DIGITEMP=digitemp_DS9097
-DIGITEMP_CFG=/etc/digitemp.conf
+export LANG=C
 ##################################################
-export LANG='de_DE.UTF-8'
-##################################################
-get_data() {
-# get data # -------------------------------------
-cat $CNT > $BUF &2>&1
-ID=$!
-sleep 2
-kill $ID >/dev/null 2>&1
-# get counter # ----------------------------------
-RET=`sed 's/[^[:print:]]//g' $BUF | awk '
-BEGIN {
-  state = 0
-}
-/1-0:1.8.0\*255\(/ {
-  if(state == 0) {
-    gsub(".*\(0*", "")
-    gsub("\*.*", "")
-    C180 = $1
+fetchData() {
+  # 1.8.0 ########################################
+  C180=`cat $ttyCNT | gawk '
+  BEGIN {
+    RS = "\n\n"
+    FS = "[()*]"
   }
-  state++
- #exit
-}
-/1-0:2.8.0\*255\(/ {
-  if(state == 1) {
-    gsub(".*\(0*", "")
-    gsub("\*.*", "")
-    C280 = $1
+  /1\.8\.0/ {
+    printf "%.3f\n", $3
+    close("2.8.0.txt")
+    exit 0
   }
-  state++
-}
-END {
-  printf("%i:%i", C180 * 1000, C280 * 1000)
-}
-'
-`
+  '`
+  # 2.8.0 ########################################
+  C280=`cat $ttyCNT | gawk '
+  BEGIN {
+    RS = "\n\n"
+    FS = "[()*]"
+  }
+  /2\.8\.0/ {
+    printf "%.3f\n", $3
+    close("2.8.0.txt")
+    exit 0
+  }
+  '`
+  # BATTERY ######################################
+  JS=`curl -k -s $sbURI`
+  BATP=`echo  "{${JS#*\{}" | jq ".result[\"0169-B33B7C84\"]\
+  [\"6100_00295A00\"][\"7\"][0].val"`
+  BAT1=`echo  "{${JS#*\{}" | jq ".result[\"0169-B33B7C84\"]\
+  [\"6100_00496900\"][\"7\"][0].val"`
+  BAT2=`echo  "{${JS#*\{}" | jq ".result[\"0169-B33B7C84\"]\
+  [\"6100_00496A00\"][\"7\"][0].val"`
+  # T ############################################
+  T=`cat $WM | jq ".main.temp"`
+  # P 6 E ########################################
+  JS=`curl -k -s $seURI`
+  E=`echo "$JS" | jq ".overview.lifeTimeData.energy"`
+  E=`printf "%.3f" "$((E))e-3"`
+  P=`echo "$JS" | jq ".overview.currentPower.power"`
+  P=`printf "%.3f" "$((P))e-3"`
 }
 ##################################################
-get_temp() {
-  Tin=`digitemp_DS9097 -a -q -o"%.2C"`
-#  RET=$RET":${T//$'\n'/:}"
-  Tout=`node -pe 'JSON.parse(process.argv[1]).main.temp' "$(cat wm.json)"`
-  RET="$RET:$Tin:$Tout"
-#  RET=$RET":20:20"
+dummyData(){
+  C180=7311.296
+  C280=3936.994
+  E=6858.274
+  P=222.000
+  BATP=92.0
+  BAT1=0.000
+  BAT2=502.000
+  T=-6.77
 }
+##################################################
+testData() {
+  echo "Wait please..."
+  #fetchData
+  dummyData
+  printf "C180 %8.3f kWh\nC280 %8.3f kWh\nE    %8.3f kWh\nP    %8.3f kW\nBAT1 %8.3f kW\nBAT2 %8.3f kW\nBATP %8.3f %%\nT    %8.3f °C\n"\
+    $C180 $C280 $E $P $BAT1 $BAT2 $BATP $T
+  exit 0
+}
+##################################################
+initData(){
+  START=`date "+%Y-%m-%d 00:00:00"`
+  START=`date "+%s" -d "$START"`
+  rm -f $1
+
+  rrdtool create $1 \
+    --start $START --step 300 \
+    DS:C180:GAUGE:600:0:U \
+    DS:C280:GAUGE:600:0:U \
+    DS:E:GAUGE:600:0:U \
+    DS:P:GAUGE:600:0:U \
+    DS:BAT1:GAUGE:600:0:U \
+    DS:BAT2:GAUGE:600:0:U \
+    DS:BATP:GAUGE:600:0:U \
+    DS:T:GAUGE:600:-100:100 \
+    RRA:AVERAGE:0.5:1:576 \
+    RRA:AVERAGE:0.5:12:7440 \
+    RRA:AVERAGE:0.5:288:2880 \
+    RRA:MIN:0.5:1:576 \
+    RRA:MIN:0.5:12:7440 \
+    RRA:MIN:0.5:288:2880 \
+    RRA:MAX:0.5:1:576 \
+    RRA:MAX:0.5:12:7440 \
+    RRA:MAX:0.5:288:2880
+  exit $?
+}
+################################################## 
+updateData(){
+  fetchData
+  #dummyData
+  REC=`printf "@%.3f:%.3f:%.3f:%.3f:%.3f:%.3f:%.1f:%.2f"\
+    $C180 $C280 $E $P $BAT1 $BAT2 $BATP $T`
+  echo `date "+%Y-%m-%d %H:%M:%S"`$REC > "$1".txt
+  rrdtool update $1 "N+0:$REC"
+  if [[ $? != 0 ]]
+  then
+    echo ERROR
+  fi
+  exit $?
+}
+##################################################
+use ()
+{
+ PRG=`basename $0`
+ cat <<ENDString
+use: $PRG [t|i|u|g] FILE [IMG1 IMG2]
+
+ -t test for data
+ -i init database FILE, if FILE exists then rewrite
+ -u update database FILE
+ -g generate images FILE IMG1 IMG2
+
+ENDString
+  exit 0
+}
+##################################################
+DIR=`dirname "$0"`
+cd $DIR
+while getopts "ti:u:g:h" OPTION
+  do
+  case $OPTION in
+    t) testData;;
+    i) initData   $OPTARG;;
+    u) updateData $OPTARG;;
+    g) echo g;;#generate $OPTARG $3 $4;;
+  esac
+done
+use
+##################################################
+
+
+
+
+exit
 ##################################################
 get_store() {
   JS=`curl -k -s $SBURI`
@@ -93,62 +185,6 @@ get_all() {
 }
 ##################################################
 
-##################################################
-use ()
-{
- PRG=`basename $0`
- cat <<ENDString
-use: $PRG [i|u|g] FILE [IMG1 IMG2]
-
- -i init database FILE, if FILE exists then rewrite
- -u update database FILE
- -g generate images FILE IMG1 IMG2
-
-ENDString
-  exit 0
-}
-##################################################
-init ()
-{
-  START=`date "+%Y-%m-%d 00:00:00"`
-  START=`date "+%s" -d "$START"`
-  rm -f $1
-
-  rrdtool create $1 \
-    --start $START --step 300 \
-    DS:Nminus:COUNTER:600:0:U \
-    DS:Nplus:COUNTER:600:0:U \
-    DS:E:COUNTER:600:0:U \
-    DS:P:GAUGE:600:0:U \
-    DS:Bminus:GAUGE:600:0:U \
-    DS:Bplus:GAUGE:600:0:U \
-    DS:B:GAUGE:600:0:U \
-    DS:Tin:GAUGE:600:-50:100 \
-    DS:Tout:GAUGE:600:-50:50 \
-    RRA:AVERAGE:0.5:1:576 \
-    RRA:AVERAGE:0.5:12:7440 \
-    RRA:AVERAGE:0.5:288:2880 \
-    RRA:MIN:0.5:1:576 \
-    RRA:MIN:0.5:12:7440 \
-    RRA:MIN:0.5:288:2880 \
-    RRA:MAX:0.5:1:576 \
-    RRA:MAX:0.5:12:7440 \
-    RRA:MAX:0.5:288:2880
-  exit $?
-
-}
-################################################## 
-update ()
-{
-  get_all
-  echo -e `date "+%Y-%m-%d %H:%M:%S"`"@$RET" > "$1".txt
-  rrdtool update $1 "N:$RET"
-  if [[ $? != 0 ]]
-  then
-    echo ERROR
-  fi
-  exit $?
-}
 ##################################################
 generate ()
 {
@@ -209,17 +245,3 @@ generate ()
 #    CDEF:gruen=g1,$OUT_LO,LT,UNKN,g1,$OUT_HI,GT,UNKN,g1,IF,IF \
 
 }
-##################################################
-DIR=`dirname "$0"`
-cd $DIR
-
-while getopts ":i:u:g:h" OPTION
-  do
-  case $OPTION in 
-    i) init $OPTARG;;
-    u) update $OPTARG;;
-    g) generate $OPTARG $3 $4;;
-  esac
-done
-use
-##################################################
