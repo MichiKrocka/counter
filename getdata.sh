@@ -15,7 +15,7 @@ sbURI="https://192.168.1.26/dyn/getDashValues.json"
 seURI="https://monitoringapi.solaredge.com/site/\
 1588788/overview?api_key=35AWMO9GK13MT2VE8ZF0YLVJ5IK7RCSA\
 &format=application/json"
-WM=/home/pi/digitemp/wm.json
+WM=/home/pi/counter/wm.json
 ##################################################
 export LANG=C
 ##################################################
