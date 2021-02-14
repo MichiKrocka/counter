@@ -31,7 +31,6 @@ if(typeof req.body.rest != "undefined"){
           t: D[0],
           d: D[1].split(":")
         };
-console.log(D);
         res.json(D);
       }
       break;
@@ -234,119 +233,94 @@ function choice(ev, el, arg){
 // ---------------------------------------------------------
 var x = [];
 var aD = [{
-  name: "8.1.0 [kWh]",
-  legendgroup: 'Zähler',  
-  vr: "Nminus",
-  k: 1/10000,
-  k2: 1/1000,
-  f2: "%.3f",
+  name: "8.1.0 [kW]",
+  legendgroup: 'Zähler',
+  d: true,  
+  k: 12.0,
+  f: "%.3f",
   x: x,
   y: []
 }, {
-  name: "8.2.0 [kWh]",
+  name: "8.2.0 [kW]",
   legendgroup: 'Zähler',  
-  vr: "Nplus",
-  k: 1/10000,
-  k2: 1/1000,
-  f2: "%.3f",
+  d: true,  
+  k: 12.0,
+  f: "%.3f",
   x: x,
   y: []
 }, {
-  name: "E [kWh]",
+  name: "E [kW]",
   legendgroup: 'Zähler',  
-  vr: "E",
-  k: 1/1000,
-  k2: 1/1000,
-  f2: "%.3f",
+  d: true,  
+  k: 12.0,
+  f: "%.3f",
   x: x,
   y: []
 }, {
   name: "P [kW]",
   legendgroup: 'Leistung',  
-  vr: "P",
-  k: 1/1000,
-  k2: 1/1000,
-  f2: "%.3f",
-  x: x,
-  y: []
-}, {
-  name: "Bout [kW]",
-  legendgroup: 'Leistung',  
-  vr: "Bminus",
-  k: 1/1000,
-  k2: 1/1000,
-  f2: "%.3f",
+  k: 1,
+  f: "%.3f",
   x: x,
   y: []
 }, {
   name: "Bin [kW]",
   legendgroup: 'Leistung',  
-  vr: "Bplus",
-  k: 1/1000,
-  k2: 1/1000,
-  f2: "%.3f",
+  k: 1,
+  f: "%.3f",
+  x: x,
+  y: []
+}, {
+  name: "Bout [kW]",
+  legendgroup: 'Leistung',  
+  k: 1,
+  f: "%.3f",
   x: x,
   y: []
 }, {
   name: "B [%]",
   legendgroup: 'Batterie',  
-  vr: "B",
   k: 1,
-  k2: 1,
-  f2: "%i",
+  f: "%.1f",
   x: x,
   y: []
 }, {
-  name: "Tin [°C]",
+  name: "T [°C]",
   legendgroup: 'Temperatur',  
-  vr: "Tin",
   k: 1,
-  k2: 1,
-  f2: "%.2f",
-  x: x,
-  y: []
-}, {
-  name: "Tout [°C]",
-  legendgroup: 'Temperatur',  
-  vr: "Tout",
-  k: 1,
-  k2: 1,
-  f2: "%.2f",
+  f: "%.2f",
   x: x,
   y: []
 }];
 var oPlot = null;
 // ---------------------------------------------------------
 function plot(D){
-  aD.forEach(d => {
-    d.x = [];
-    d.y = [];
-  });
-  D.forEach(d => {
-    var x = new Date(d[0] * 1000);
+//console.log(D);
+  aD.forEach((a, ia) => {
+    var v0 = D[0][ia + 1];
 
-    x = sprintf("%04d-%02d-%02d %02d:%02d:%02d",
-          x.getFullYear(), x.getMonth() + 1, x.getDate(),
-          x.getHours(),    x.getMinutes(),   x.getSeconds()
-        );
-    aD.forEach((o, ix) => {
-      o.x.push(x);
-      o.y.push(d[ix + 1] * o.k);
+    a.x = [];
+    a.y = [];
+    D.forEach((d, id) => {
+      var x = new Date(d[0] * 1000);
+
+      x = sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+        x.getFullYear(), x.getMonth() + 1, x.getDate(),
+        x.getHours(),    x.getMinutes(),   x.getSeconds()
+      );
+
+      if(a.d){  // difference
+        if(id){
+          a.x.push(x);
+          a.y.push(sprintf(a.f, (d[ia + 1] - v0) * a.k));
+          v0 = d[ia + 1];
+        }
+      } else {
+        a.x.push(x);
+        a.y.push(sprintf(a.f, d[ia + 1]));
+      }
     });
   });
-/*
-  D.pop();
-  x = D.map(a => {
-    var d = new Date(a.time * 1000);
-    return sprintf("%04d-%02d-%02d %02d:%02d:%02d",
-      d.getFullYear(), d.getMonth() + 1, d.getDate(),
-      d.getHours(), d.getMinutes(), d.getSeconds());
-  });
-  aD.forEach((d, ix) => {
-    d.x = x;
-    d.y = D.map(a => a.values[d.vr] * d.k);
-  });
-  */
   // .......................................................
   if(oPlot !== null){
     Plotly.redraw("id_PLOT");
@@ -385,8 +359,10 @@ function hist(D){
     D.trim().split("\n").map((d, ir) => {
       d = d.split("@");
     return `<tr data-sort_id="${ir}"><td></td><td>${d[0]}</td>`+
-            d[1].split(":").map((dd, ix) => 
-      `<td>${sprintf(aD[ix].f2, dd * aD[ix].k2)}</td>`)
+            d[1].split(":").map((dd, ix) =>
+      ix >=3  && ix <=6 ?
+      '' :
+      `<td>${sprintf(aD[ix].f, dd)}</td>`)
       .join("")+
       '<td></td></tr>';
   }));
@@ -408,7 +384,6 @@ function getData(callBack, repeat){
   $.postJSON("/", {
     rest:   "GET_DATA"
   }, function(D){
-console.log(D);return;
     renderData(D);
     if(repeat)
       renderData(D);
@@ -417,15 +392,14 @@ console.log(D);return;
   });
   function renderData(D){
     $('.time', '#id_Navig').text(D.t);
-    setVal('td.810',    D.d[0] / 1000);
-    setVal('td.820',    D.d[1] / 1000);
-    setVal('td.E',      D.d[2] / 1000);
-    setVal('td.P',      D.d[3] / 1000);
-    setVal('td.Bplus',  D.d[4] / 1000);
-    setVal('td.Bminus', D.d[5] / 1000);
-    setVal('td.B',      D.d[6], "%i");
-    setVal('td.Tin',    D.d[7], "%.02f");
-    setVal('td.Tout',   D.d[8], "%.02f");
+    setVal('td.810',    D.d[0]);
+    setVal('td.820',    D.d[1]);
+    setVal('td.E',      D.d[2]);
+    setVal('td.P',      D.d[3]);
+    setVal('td.Bin',    D.d[4]);
+    setVal('td.Bout',   D.d[5]);
+    setVal('td.B',      D.d[6], "%.1f");
+    setVal('td.T',      D.d[7], "%.02f");
   }
 }
 // ---------------------------------------------------------
@@ -529,11 +503,10 @@ span.time_bar {
             <th>8.2.0<br>[kWh]</th>
             <th>E<br>[kWh]</th>
             <th>P<br>[kW]</th>
-            <th>Bout<br>[kW]</th>
             <th>Bin<br>[kW]</th>
+            <th>Bout<br>[kW]</th>
             <th>B<br>[%]</th>
-            <th>Tin<br>[°C]</th>
-            <th>Tout<br>[°C]</th>
+            <th>T<br>[°C]</th>
             <th></th>
           </tr>
         </thead>
@@ -544,11 +517,10 @@ span.time_bar {
             <td class="820">816.793</td>
             <td class="E">1279.812</td>
             <td class="P">0.000</td>
-            <td class="Bplus">0.000</td>
-            <td class="Bminus">0.000</td>
-            <td class="B">0</td>
-            <td class="Tin">20.00</td>
-            <td class="Tout">10.00</td>
+            <td class="Bin">0.000</td>
+            <td class="Bout">0.000</td>
+            <td class="B">0.0</td>
+            <td class="T">20.00</td>
             <td></td>
           </tr>
         </tbod>
@@ -568,12 +540,13 @@ span.time_bar {
             <th class="sort w3-button">8.1.0</th>
             <th class="sort w3-button">8.2.0</th>
             <th class="sort w3-button">E</th>
+<!--            
             <th class="sort w3-button">P</th>
-            <th class="sort w3-button">Bout</th>
             <th class="sort w3-button">Bin</th>
+            <th class="sort w3-button">Bout</th>
             <th class="sort w3-button">B</th>
-            <th class="sort w3-button">Tin</th>
-            <th class="sort w3-button">Tout</th>
+-->            
+            <th class="sort w3-button">T</th>
             <th></th>
           </tr>
         </thead>
