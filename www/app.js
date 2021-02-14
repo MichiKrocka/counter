@@ -1,3 +1,5 @@
+//  "KEY": "/home/krocka/.ssh/id_rsa",
+
 /***********************************************************
 * @file     app.js
 * @author   Michael Krocka
