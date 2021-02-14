@@ -82,7 +82,9 @@ if(typeof req.body.rest != "undefined"){
         return;
       }
       // local .............................................
-      child_p.exec(cmdGetPltData, (err, stdo, stde) => {
+//      child_p.exec(cmdGetPltData, (err, stdo, stde) => {
+      child_p.exec("ls -l", (err, stdo, stde) => {
+console.log(stdo);
         if(err){
           console.log(err);
           return res.json(err);
@@ -91,7 +93,8 @@ if(typeof req.body.rest != "undefined"){
           console.log(stde);
           return res.json(err);
         }
-console.log(stdo);        
+return res.json({});
+    
         var D = stdo
         .split("\n")
         .filter((d, ix) => ix > 1 && d != "" && !(/nan/.test(d)))
