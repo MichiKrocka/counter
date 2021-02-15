@@ -93,7 +93,7 @@ if(typeof req.body.rest != "undefined"){
         }
         var D = stdo
         .split("\n")
-        .filter((d, ix) => ix > 1 && d != "" && !(/nan/.test(d)))
+        .filter((d, ix) => ix > 1 && d != ""))
         .map(d => {
           var t = d.split(/:/),
               y = t[1].trim().replace(/,/g, ".").split(/ +/)
@@ -310,7 +310,8 @@ var oPlot = null;
 function plot(D){
 //console.log(D);
   aD.forEach((a, ia) => {
-    var v0 = D[0][ia + 1];
+    var v0   = D[0][ia + 1];
+        dif0 = 1;
 
     a.x = [];
     a.y = [];
@@ -324,9 +325,14 @@ function plot(D){
 
       if(a.d){  // difference
         if(id){
-          a.x.push(x);
-          a.y.push(sprintf(a.f, (d[ia + 1] - v0) * a.k));
-          v0 = d[ia + 1];
+          var dif = d[ia + 1] - v0;
+
+          if(dif >= 0 && dif0 > 0){
+            a.x.push(x);
+            a.y.push(sprintf(a.f, (d[ia + 1] - v0) * a.k));
+            v0 = d[ia + 1];
+          } else
+            dif0 = dif;
         }
       } else {
         a.x.push(x);
