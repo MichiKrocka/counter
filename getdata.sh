@@ -1,14 +1,13 @@
 #!/bin/bash
 ##################################################
-# Nminus [kWh]
-# Nplus  [kWh]
-# E      [Wh]
-# P      [W]
-# Bminus [W]
-# Bplus  [W]
-# B      [%]
-# Tin    [°C]
-# Tout   [°C]
+# C180   [kWh]
+# C280   [kWh]
+# E      [kWh]
+# P      [kW]
+# BAT1   [kW]
+# BAT2   [kW]
+# BATP   [%]
+# T      [°C]
 ##################################################
 ttyCNT=/dev/ttyUSB0
 sbURI="https://192.168.1.26/dyn/getDashValues.json"
@@ -16,6 +15,17 @@ seURI="https://monitoringapi.solaredge.com/site/\
 1588788/overview?api_key=35AWMO9GK13MT2VE8ZF0YLVJ5IK7RCSA\
 &format=application/json"
 WM=/home/pi/counter/wm.json
+
+FRM=`cat <<ENDString
+C180 %8.3f kWh
+C280 %8.3f kWh
+E    %8.3f kWh
+P    %8.3f kW
+BAT1 %8.3f kW
+BAT2 %8.3f kW
+BATP %8.3f %%
+T    %8.3f °C
+ENDString`
 ##################################################
 export LANG=C
 ##################################################
@@ -69,9 +79,9 @@ dummyData(){
   C280=3936.994
   E=6858.274
   P=222.000
-  BATP=92.0
   BAT1=0.000
   BAT2=502.000
+  BATP=92.0
   T=-6.77
 }
 ##################################################
@@ -79,7 +89,7 @@ testData() {
   echo "Wait please..."
   fetchData
   #dummyData
-  printf "C180 %8.3f kWh\nC280 %8.3f kWh\nE    %8.3f kWh\nP    %8.3f kW\nBAT1 %8.3f kW\nBAT2 %8.3f kW\nBATP %8.3f %%\nT    %8.3f °C\n"\
+  print "$FRM"\
     $C180 $C280 $E $P $BAT1 $BAT2 $BATP $T
   exit 0
 }
