@@ -93,7 +93,7 @@ if(typeof req.body.rest != "undefined"){
         }
         var D = stdo
         .split("\n")
-        .filter((d, ix) => ix > 1 && d != ""))
+        .filter((d, ix) => ix > 1 && d != "")
         .map(d => {
           var t = d.split(/:/),
               y = t[1].trim().replace(/,/g, ".").split(/ +/)
