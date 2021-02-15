@@ -24,7 +24,7 @@ P    %8.3f kW
 BAT1 %8.3f kW
 BAT2 %8.3f kW
 BATP %8.3f %%
-T    %8.3f °C
+T    %8.3f °C\n
 ENDString`
 ##################################################
 export LANG=C
@@ -88,9 +88,8 @@ dummyData(){
 testData() {
   echo "Wait please..."
   fetchData
-  #dummyData
-  print "$FRM"\
-    $C180 $C280 $E $P $BAT1 $BAT2 $BATP $T
+#  dummyData
+  printf "$FRM" $C180 $C280 $E $P $BAT1 $BAT2 $BATP $T
   exit 0
 }
 ##################################################
