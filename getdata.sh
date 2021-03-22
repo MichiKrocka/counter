@@ -100,9 +100,9 @@ initData(){
 
   rrdtool create $1 \
     --start $START --step 300 \
-    DS:C180:GAUGE:600:0:U \
-    DS:C280:GAUGE:600:0:U \
-    DS:E:GAUGE:600:0:U \
+    DS:C180:GAUGE:600:0:100000 \
+    DS:C280:GAUGE:600:0:100000 \
+    DS:E:GAUGE:600:0:100000 \
     DS:P:GAUGE:600:0:10 \
     DS:BAT1:GAUGE:600:0:U \
     DS:BAT2:GAUGE:600:0:U \
